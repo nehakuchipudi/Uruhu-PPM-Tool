@@ -1,119 +1,160 @@
-import { Router, Request, Response } from 'express';
+import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import prisma from '../db.js';
 
-const router = Router();
+interface IdParam {
+  id: string;
+}
 
-// Get all people (optionally filtered by instance)
-router.get('/', async (req: Request, res: Response) => {
-  try {
-    const { instanceId } = req.query;
-    const where = instanceId ? { instanceId: instanceId as string } : {};
-    
-    const people = await prisma.person.findMany({
-      where,
-      include: {
-        assignedRole: true,
-        instance: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-    });
-    res.json(people);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch people' });
-  }
-});
+interface PeopleQuerystring {
+  instanceId?: string;
+}
 
-// Get person by ID
-router.get('/:id', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const person = await prisma.person.findUnique({
-      where: { id },
-      include: {
-        assignedRole: true,
-        instance: true,
-        projectAssignments: {
+interface CreatePersonBody {
+  name: string;
+  email: string;
+  role?: string;
+  roleId?: string;
+  avatar?: string;
+  instanceId: string;
+}
+
+interface UpdatePersonBody {
+  name?: string;
+  email?: string;
+  role?: string;
+  roleId?: string;
+  avatar?: string;
+}
+
+export default async function peopleRoutes(fastify: FastifyInstance) {
+  // Get all people (optionally filtered by instance)
+  fastify.get<{ Querystring: PeopleQuerystring }>(
+    '/',
+    async (request: FastifyRequest<{ Querystring: PeopleQuerystring }>, reply: FastifyReply) => {
+      try {
+        const { instanceId } = request.query;
+        const where = instanceId ? { instanceId: instanceId as string } : {};
+
+        const people = await prisma.person.findMany({
+          where,
           include: {
-            project: true,
+            assignedRole: true,
+            instance: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
-        },
-      },
-    });
-    
-    if (!person) {
-      return res.status(404).json({ error: 'Person not found' });
+        });
+        return people;
+      } catch (error) {
+        reply.status(500).send({ error: 'Failed to fetch people' });
+      }
     }
-    
-    res.json(person);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch person' });
-  }
-});
+  );
 
-// Create person
-router.post('/', async (req: Request, res: Response) => {
-  try {
-    const { name, email, role, roleId, avatar, instanceId } = req.body;
-    const person = await prisma.person.create({
-      data: {
-        name,
-        email,
-        role,
-        roleId,
-        avatar,
-        instanceId,
-      },
-      include: {
-        assignedRole: true,
-      },
-    });
-    res.status(201).json(person);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to create person' });
-  }
-});
+  // Get person by ID
+  fastify.get<{ Params: IdParam }>(
+    '/:id',
+    async (request: FastifyRequest<{ Params: IdParam }>, reply: FastifyReply) => {
+      try {
+        const { id } = request.params;
+        const person = await prisma.person.findUnique({
+          where: { id },
+          include: {
+            assignedRole: true,
+            instance: true,
+            projectAssignments: {
+              include: {
+                project: true,
+              },
+            },
+          },
+        });
 
-// Update person
-router.put('/:id', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { name, email, role, roleId, avatar } = req.body;
-    
-    const person = await prisma.person.update({
-      where: { id },
-      data: {
-        name,
-        email,
-        role,
-        roleId,
-        avatar,
-      },
-      include: {
-        assignedRole: true,
-      },
-    });
-    
-    res.json(person);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to update person' });
-  }
-});
+        if (!person) {
+          return reply.status(404).send({ error: 'Person not found' });
+        }
 
-// Delete person
-router.delete('/:id', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    await prisma.person.delete({
-      where: { id },
-    });
-    res.json({ message: 'Person deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to delete person' });
-  }
-});
+        return person;
+      } catch (error) {
+        reply.status(500).send({ error: 'Failed to fetch person' });
+      }
+    }
+  );
 
-export default router;
+  // Create person
+  fastify.post<{ Body: CreatePersonBody }>(
+    '/',
+    async (request: FastifyRequest<{ Body: CreatePersonBody }>, reply: FastifyReply) => {
+      try {
+        const { name, email, role, roleId, avatar, instanceId } = request.body;
+        const person = await prisma.person.create({
+          data: {
+            name,
+            email,
+            role,
+            roleId,
+            avatar,
+            instanceId,
+          },
+          include: {
+            assignedRole: true,
+          },
+        });
+        return reply.status(201).send(person);
+      } catch (error) {
+        reply.status(500).send({ error: 'Failed to create person' });
+      }
+    }
+  );
+
+  // Update person
+  fastify.put<{ Params: IdParam; Body: UpdatePersonBody }>(
+    '/:id',
+    async (
+      request: FastifyRequest<{ Params: IdParam; Body: UpdatePersonBody }>,
+      reply: FastifyReply
+    ) => {
+      try {
+        const { id } = request.params;
+        const { name, email, role, roleId, avatar } = request.body;
+
+        const person = await prisma.person.update({
+          where: { id },
+          data: {
+            name,
+            email,
+            role,
+            roleId,
+            avatar,
+          },
+          include: {
+            assignedRole: true,
+          },
+        });
+
+        return person;
+      } catch (error) {
+        reply.status(500).send({ error: 'Failed to update person' });
+      }
+    }
+  );
+
+  // Delete person
+  fastify.delete<{ Params: IdParam }>(
+    '/:id',
+    async (request: FastifyRequest<{ Params: IdParam }>, reply: FastifyReply) => {
+      try {
+        const { id } = request.params;
+        await prisma.person.delete({
+          where: { id },
+        });
+        return { message: 'Person deleted successfully' };
+      } catch (error) {
+        reply.status(500).send({ error: 'Failed to delete person' });
+      }
+    }
+  );
+}

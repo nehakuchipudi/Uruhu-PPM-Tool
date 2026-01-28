@@ -12,8 +12,11 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      // Alias @ to the src directory
-      '@': path.resolve(__dirname, './src'),
+      // Alias @ to the src directory (pointing to current directory since we're already in src)
+      '@': path.resolve(__dirname, '.'),
     },
+  },
+  server: {
+    port: 5173,
   },
 })

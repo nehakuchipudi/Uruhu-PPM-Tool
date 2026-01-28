@@ -1,5 +1,6 @@
-import express, { Request, Response } from 'express';
-import cors from 'cors';
+import Fastify from 'fastify';
+import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
 import dotenv from 'dotenv';
 import prisma from './db.js';
 
@@ -14,45 +15,72 @@ import roleRoutes from './routes/roles.js';
 
 dotenv.config();
 
-const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = parseInt(process.env.PORT || '3001', 10);
+const HOST = process.env.HOST || '0.0.0.0';
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Health check
-app.get('/health', (req: Request, res: Response) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+const fastify = Fastify({
+  logger: {
+    level: process.env.LOG_LEVEL || 'info',
+    transport: process.env.NODE_ENV === 'development'
+      ? { target: 'pino-pretty' }
+      : undefined
+  }
 });
 
-// API Routes
-app.use('/api/instances', instanceRoutes);
-app.use('/api/people', personRoutes);
-app.use('/api/projects', projectRoutes);
-app.use('/api/work-orders', workOrderRoutes);
-app.use('/api/recurring-tasks', recurringTaskRoutes);
-app.use('/api/quotes', quoteRoutes);
-app.use('/api/roles', roleRoutes);
+// Register plugins
+await fastify.register(cors, {
+  origin: process.env.CORS_ORIGIN || '*',
+  credentials: true
+});
 
-// Error handling middleware
-app.use((err: Error, req: Request, res: Response, next: any) => {
-  console.error(err.stack);
-  res.status(500).json({ 
-    error: 'Something went wrong!', 
-    message: err.message 
+await fastify.register(multipart, {
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB
+  }
+});
+
+// Health check
+fastify.get('/health', async (request, reply) => {
+  return { status: 'ok', timestamp: new Date().toISOString() };
+});
+
+// Register API routes
+await fastify.register(instanceRoutes, { prefix: '/api/instances' });
+await fastify.register(personRoutes, { prefix: '/api/people' });
+await fastify.register(projectRoutes, { prefix: '/api/projects' });
+await fastify.register(workOrderRoutes, { prefix: '/api/work-orders' });
+await fastify.register(recurringTaskRoutes, { prefix: '/api/recurring-tasks' });
+await fastify.register(quoteRoutes, { prefix: '/api/quotes' });
+await fastify.register(roleRoutes, { prefix: '/api/roles' });
+
+// Global error handler
+fastify.setErrorHandler((error, request, reply) => {
+  fastify.log.error(error);
+
+  reply.status(error.statusCode || 500).send({
+    error: 'Something went wrong!',
+    message: error.message,
+    statusCode: error.statusCode || 500
   });
 });
 
+// Graceful shutdown
+const closeGracefully = async (signal: string) => {
+  fastify.log.info(`Received ${signal}, closing gracefully...`);
+  await prisma.$disconnect();
+  await fastify.close();
+  process.exit(0);
+};
+
+process.on('SIGINT', () => closeGracefully('SIGINT'));
+process.on('SIGTERM', () => closeGracefully('SIGTERM'));
+
 // Start server
-app.listen(PORT, () => {
+try {
+  await fastify.listen({ port: PORT, host: HOST });
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
-});
-
-// Graceful shutdown
-process.on('SIGINT', async () => {
-  await prisma.$disconnect();
-  process.exit(0);
-});
+} catch (err) {
+  fastify.log.error(err);
+  process.exit(1);
+}

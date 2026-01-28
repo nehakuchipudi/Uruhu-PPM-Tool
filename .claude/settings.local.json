@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm --version:*)",
+      "Bash(npm --version:*)",
+      "Bash(npm install:*)",
+      "Bash(pnpm install:*)",
+      "Bash(docker:*)",
+      "Bash(pnpm docker:standard:*)",
+      "Bash(bash:*)",
+      "Bash(pnpm db:generate:*)",
+      "Bash(prisma generate:*)",
+      "Bash(npx prisma generate:*)",
+      "Bash(ls:*)",
+      "Bash(pnpm db:migrate:*)",
+      "Bash(pnpm db:push:*)",
+      "Bash(find:*)",
+      "Bash(npx tsc:*)",
+      "Bash(chmod:*)",
+      "Bash(./docker/scripts/start-standard.sh:*)",
+      "Bash(pnpm prisma migrate reset:*)",
+      "Bash(git add:*)",
+      "Bash(pnpm prisma db push:*)",
+      "Bash(curl:*)",
+      "WebSearch",
+      "Bash(timeout 10 pnpm dev:frontend:*)",
+      "Bash(pkill:*)",
+      "Bash(netstat:*)",
+      "Bash(xargs:*)"
+    ]
+  }
+}

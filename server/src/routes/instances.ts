@@ -1,104 +1,137 @@
-import { Router, Request, Response } from 'express';
+import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import prisma from '../db.js';
 
-const router = Router();
+interface IdParam {
+  id: string;
+}
 
-// Get all instances
-router.get('/', async (req: Request, res: Response) => {
-  try {
-    const instances = await prisma.instance.findMany({
-      include: {
-        _count: {
-          select: {
-            people: true,
-            projects: true,
-            workOrders: true,
+interface CreateInstanceBody {
+  name: string;
+  logo?: string;
+  primaryColor?: string;
+  workflowEnabled?: boolean;
+  customFields?: any[];
+}
+
+interface UpdateInstanceBody {
+  name?: string;
+  logo?: string;
+  primaryColor?: string;
+  workflowEnabled?: boolean;
+  customFields?: any[];
+}
+
+export default async function instanceRoutes(fastify: FastifyInstance) {
+  // Get all instances
+  fastify.get('/', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const instances = await prisma.instance.findMany({
+        include: {
+          _count: {
+            select: {
+              people: true,
+              projects: true,
+              workOrders: true,
+            },
           },
         },
-      },
-    });
-    res.json(instances);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch instances' });
-  }
-});
-
-// Get instance by ID
-router.get('/:id', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const instance = await prisma.instance.findUnique({
-      where: { id },
-      include: {
-        people: true,
-        roles: true,
-        projects: true,
-      },
-    });
-    
-    if (!instance) {
-      return res.status(404).json({ error: 'Instance not found' });
+      });
+      return instances;
+    } catch (error) {
+      reply.status(500).send({ error: 'Failed to fetch instances' });
     }
-    
-    res.json(instance);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch instance' });
-  }
-});
+  });
 
-// Create instance
-router.post('/', async (req: Request, res: Response) => {
-  try {
-    const { name, logo, primaryColor, workflowEnabled, customFields } = req.body;
-    const instance = await prisma.instance.create({
-      data: {
-        name,
-        logo,
-        primaryColor,
-        workflowEnabled: workflowEnabled ?? true,
-        customFields: customFields || [],
-      },
-    });
-    res.status(201).json(instance);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to create instance' });
-  }
-});
+  // Get instance by ID
+  fastify.get<{ Params: IdParam }>(
+    '/:id',
+    async (request: FastifyRequest<{ Params: IdParam }>, reply: FastifyReply) => {
+      try {
+        const { id } = request.params;
+        const instance = await prisma.instance.findUnique({
+          where: { id },
+          include: {
+            people: true,
+            roles: true,
+            projects: true,
+          },
+        });
 
-// Update instance
-router.put('/:id', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { name, logo, primaryColor, workflowEnabled, customFields } = req.body;
-    
-    const instance = await prisma.instance.update({
-      where: { id },
-      data: {
-        name,
-        logo,
-        primaryColor,
-        workflowEnabled,
-        customFields,
-      },
-    });
-    
-    res.json(instance);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to update instance' });
-  }
-});
+        if (!instance) {
+          return reply.status(404).send({ error: 'Instance not found' });
+        }
 
-// Delete instance
-router.delete('/:id', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    await prisma.instance.delete({
-      where: { id },
-    });
-    res.json({ message: 'Instance deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to delete instance' });
-  }
-});
+        return instance;
+      } catch (error) {
+        reply.status(500).send({ error: 'Failed to fetch instance' });
+      }
+    }
+  );
 
-export default router;
+  // Create instance
+  fastify.post<{ Body: CreateInstanceBody }>(
+    '/',
+    async (request: FastifyRequest<{ Body: CreateInstanceBody }>, reply: FastifyReply) => {
+      try {
+        const { name, logo, primaryColor, workflowEnabled, customFields } = request.body;
+        const instance = await prisma.instance.create({
+          data: {
+            name,
+            logo,
+            primaryColor,
+            workflowEnabled: workflowEnabled ?? true,
+            customFields: customFields || [],
+          },
+        });
+        return reply.status(201).send(instance);
+      } catch (error) {
+        reply.status(500).send({ error: 'Failed to create instance' });
+      }
+    }
+  );
+
+  // Update instance
+  fastify.put<{ Params: IdParam; Body: UpdateInstanceBody }>(
+    '/:id',
+    async (
+      request: FastifyRequest<{ Params: IdParam; Body: UpdateInstanceBody }>,
+      reply: FastifyReply
+    ) => {
+      try {
+        const { id } = request.params;
+        const { name, logo, primaryColor, workflowEnabled, customFields } = request.body;
+
+        const instance = await prisma.instance.update({
+          where: { id },
+          data: {
+            name,
+            logo,
+            primaryColor,
+            workflowEnabled,
+            customFields,
+          },
+        });
+
+        return instance;
+      } catch (error) {
+        reply.status(500).send({ error: 'Failed to update instance' });
+      }
+    }
+  );
+
+  // Delete instance
+  fastify.delete<{ Params: IdParam }>(
+    '/:id',
+    async (request: FastifyRequest<{ Params: IdParam }>, reply: FastifyReply) => {
+      try {
+        const { id } = request.params;
+        await prisma.instance.delete({
+          where: { id },
+        });
+        return { message: 'Instance deleted successfully' };
+      } catch (error) {
+        reply.status(500).send({ error: 'Failed to delete instance' });
+      }
+    }
+  );
+}

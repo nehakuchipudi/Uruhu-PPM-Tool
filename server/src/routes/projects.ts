@@ -1,58 +1,157 @@
-import { Router, Request, Response } from 'express';
+import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import prisma from '../db.js';
 
-const router = Router();
+interface IdParam {
+  id: string;
+}
 
-// Get all projects (optionally filtered by instance)
-router.get('/', async (req: Request, res: Response) => {
-  try {
-    const { instanceId, status } = req.query;
-    const where: any = {};
-    
-    if (instanceId) where.instanceId = instanceId as string;
-    if (status) where.status = status as string;
-    
-    const projects = await prisma.project.findMany({
-      where,
-      include: {
-        assignments: {
+interface ProjectsQuerystring {
+  instanceId?: string;
+  status?: string;
+}
+
+interface CreateProjectBody {
+  name: string;
+  description?: string;
+  instanceId: string;
+  customerName?: string;
+  status?: string;
+  startDate: string;
+  endDate: string;
+  budget?: number;
+  progress?: number;
+  priority?: string;
+  assignedTo?: string[];
+}
+
+interface UpdateProjectBody {
+  name?: string;
+  description?: string;
+  customerName?: string;
+  status?: string;
+  startDate?: string;
+  endDate?: string;
+  budget?: number;
+  progress?: number;
+  priority?: string;
+}
+
+export default async function projectRoutes(fastify: FastifyInstance) {
+  // Get all projects (optionally filtered by instance)
+  fastify.get<{ Querystring: ProjectsQuerystring }>(
+    '/',
+    async (request: FastifyRequest<{ Querystring: ProjectsQuerystring }>, reply: FastifyReply) => {
+      try {
+        const { instanceId, status } = request.query;
+        const where: any = {};
+
+        if (instanceId) where.instanceId = instanceId as string;
+        if (status) where.status = status as string;
+
+        const projects = await prisma.project.findMany({
+          where,
           include: {
-            person: true,
-          },
-        },
-        tasks: true,
-        workOrders: true,
-        _count: {
-          select: {
+            assignments: {
+              include: {
+                person: true,
+              },
+            },
             tasks: true,
             workOrders: true,
+            _count: {
+              select: {
+                tasks: true,
+                workOrders: true,
+              },
+            },
           },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-    res.json(projects);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch projects' });
-  }
-});
+          orderBy: {
+            createdAt: 'desc',
+          },
+        });
+        return projects;
+      } catch (error) {
+        reply.status(500).send({ error: 'Failed to fetch projects' });
+      }
+    }
+  );
 
-// Get project by ID
-router.get('/:id', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const project = await prisma.project.findUnique({
-      where: { id },
-      include: {
-        instance: true,
-        assignments: {
+  // Get project by ID
+  fastify.get<{ Params: IdParam }>(
+    '/:id',
+    async (request: FastifyRequest<{ Params: IdParam }>, reply: FastifyReply) => {
+      try {
+        const { id } = request.params;
+        const project = await prisma.project.findUnique({
+          where: { id },
           include: {
-            person: true,
+            instance: true,
+            assignments: {
+              include: {
+                person: true,
+              },
+            },
+            tasks: {
+              include: {
+                assignments: {
+                  include: {
+                    person: true,
+                  },
+                },
+              },
+            },
+            workOrders: true,
           },
-        },
-        tasks: {
+        });
+
+        if (!project) {
+          return reply.status(404).send({ error: 'Project not found' });
+        }
+
+        return project;
+      } catch (error) {
+        reply.status(500).send({ error: 'Failed to fetch project' });
+      }
+    }
+  );
+
+  // Create project
+  fastify.post<{ Body: CreateProjectBody }>(
+    '/',
+    async (request: FastifyRequest<{ Body: CreateProjectBody }>, reply: FastifyReply) => {
+      try {
+        const {
+          name,
+          description,
+          instanceId,
+          customerName,
+          status,
+          startDate,
+          endDate,
+          budget,
+          progress,
+          priority,
+          assignedTo,
+        } = request.body;
+
+        const project = await prisma.project.create({
+          data: {
+            name,
+            description,
+            instanceId,
+            customerName,
+            status: status || 'planning',
+            startDate: new Date(startDate),
+            endDate: new Date(endDate),
+            budget,
+            progress: progress || 0,
+            priority: priority || 'medium',
+            assignments: {
+              create: (assignedTo || []).map((personId: string) => ({
+                personId,
+              })),
+            },
+          },
           include: {
             assignments: {
               include: {
@@ -60,126 +159,78 @@ router.get('/:id', async (req: Request, res: Response) => {
               },
             },
           },
-        },
-        workOrders: true,
-      },
-    });
-    
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
+        });
+
+        return reply.status(201).send(project);
+      } catch (error) {
+        reply.status(500).send({ error: 'Failed to create project' });
+      }
     }
-    
-    res.json(project);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch project' });
-  }
-});
+  );
 
-// Create project
-router.post('/', async (req: Request, res: Response) => {
-  try {
-    const {
-      name,
-      description,
-      instanceId,
-      customerName,
-      status,
-      startDate,
-      endDate,
-      budget,
-      progress,
-      priority,
-      assignedTo,
-    } = req.body;
-    
-    const project = await prisma.project.create({
-      data: {
-        name,
-        description,
-        instanceId,
-        customerName,
-        status: status || 'planning',
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-        budget,
-        progress: progress || 0,
-        priority: priority || 'medium',
-        assignments: {
-          create: (assignedTo || []).map((personId: string) => ({
-            personId,
-          })),
-        },
-      },
-      include: {
-        assignments: {
-          include: {
-            person: true,
+  // Update project
+  fastify.put<{ Params: IdParam; Body: UpdateProjectBody }>(
+    '/:id',
+    async (
+      request: FastifyRequest<{ Params: IdParam; Body: UpdateProjectBody }>,
+      reply: FastifyReply
+    ) => {
+      try {
+        const { id } = request.params;
+        const {
+          name,
+          description,
+          customerName,
+          status,
+          startDate,
+          endDate,
+          budget,
+          progress,
+          priority,
+        } = request.body;
+
+        const project = await prisma.project.update({
+          where: { id },
+          data: {
+            name,
+            description,
+            customerName,
+            status,
+            startDate: startDate ? new Date(startDate) : undefined,
+            endDate: endDate ? new Date(endDate) : undefined,
+            budget,
+            progress,
+            priority,
           },
-        },
-      },
-    });
-    
-    res.status(201).json(project);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to create project' });
-  }
-});
-
-// Update project
-router.put('/:id', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const {
-      name,
-      description,
-      customerName,
-      status,
-      startDate,
-      endDate,
-      budget,
-      progress,
-      priority,
-    } = req.body;
-    
-    const project = await prisma.project.update({
-      where: { id },
-      data: {
-        name,
-        description,
-        customerName,
-        status,
-        startDate: startDate ? new Date(startDate) : undefined,
-        endDate: endDate ? new Date(endDate) : undefined,
-        budget,
-        progress,
-        priority,
-      },
-      include: {
-        assignments: {
           include: {
-            person: true,
+            assignments: {
+              include: {
+                person: true,
+              },
+            },
           },
-        },
-      },
-    });
-    
-    res.json(project);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to update project' });
-  }
-});
+        });
 
-// Delete project
-router.delete('/:id', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    await prisma.project.delete({
-      where: { id },
-    });
-    res.json({ message: 'Project deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to delete project' });
-  }
-});
+        return project;
+      } catch (error) {
+        reply.status(500).send({ error: 'Failed to update project' });
+      }
+    }
+  );
 
-export default router;
+  // Delete project
+  fastify.delete<{ Params: IdParam }>(
+    '/:id',
+    async (request: FastifyRequest<{ Params: IdParam }>, reply: FastifyReply) => {
+      try {
+        const { id } = request.params;
+        await prisma.project.delete({
+          where: { id },
+        });
+        return { message: 'Project deleted successfully' };
+      } catch (error) {
+        reply.status(500).send({ error: 'Failed to delete project' });
+      }
+    }
+  );
+}
