@@ -1,0 +1,29 @@
+{
+  "name": "uruhu-ppm-api",
+  "version": "1.0.0",
+  "description": "Azure Functions API for Uruhu PPM Tool",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "prestart": "npm run build",
+    "start": "func start",
+    "postinstall": "npx prisma generate --schema=../prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.0.0",
+    "@prisma/adapter-pg": "^7.3.0",
+    "@prisma/client": "^7.3.0",
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^17.2.3",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.17.2"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.0.10",
+    "azure-functions-core-tools": "^4.0.5530",
+    "prisma": "^7.3.0",
+    "typescript": "^5.9.3"
+  }
+}

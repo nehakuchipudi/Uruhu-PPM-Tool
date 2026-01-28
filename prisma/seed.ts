@@ -2,12 +2,19 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import { config } from 'dotenv';
+import * as bcrypt from 'bcryptjs';
 
 config();
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
+
+// Helper function to hash passwords
+async function hashPassword(password: string): Promise<string> {
+  const salt = await bcrypt.genSalt(10);
+  return bcrypt.hash(password, salt);
+}
 
 async function main() {
   console.log('🌱 Starting database seed...');
@@ -35,6 +42,236 @@ async function main() {
   });
 
   console.log('✅ Created 2 instances');
+
+  // Create users for authentication testing
+  console.log('Creating users...');
+  
+  // Hash a common password for all test users
+  const testPassword = await hashPassword('Password123!');
+  
+  // SuperAdmin users (can access all tenants)
+  await prisma.user.createMany({
+    data: [
+      {
+        email: 'superadmin1@uruhu.com',
+        passwordHash: testPassword,
+        name: 'Super Admin One',
+        tenantId: instance1.id,
+        role: 'SUPERADMIN',
+        emailVerified: true,
+      },
+      {
+        email: 'superadmin2@uruhu.com',
+        passwordHash: testPassword,
+        name: 'Super Admin Two',
+        tenantId: instance1.id,
+        role: 'SUPERADMIN',
+        emailVerified: true,
+      },
+    ],
+  });
+
+  // Instance 1 (GreenScape Solutions) users
+  await prisma.user.createMany({
+    data: [
+      // Admin
+      {
+        email: 'admin1@greenscape.com',
+        passwordHash: testPassword,
+        name: 'Alice Administrator',
+        tenantId: instance1.id,
+        role: 'ADMIN',
+        emailVerified: true,
+      },
+      {
+        email: 'admin2@greenscape.com',
+        passwordHash: testPassword,
+        name: 'Andrew Admin',
+        tenantId: instance1.id,
+        role: 'ADMIN',
+        emailVerified: true,
+      },
+      // Director
+      {
+        email: 'director1@greenscape.com',
+        passwordHash: testPassword,
+        name: 'Diana Director',
+        tenantId: instance1.id,
+        role: 'DIRECTOR',
+        emailVerified: true,
+      },
+      {
+        email: 'director2@greenscape.com',
+        passwordHash: testPassword,
+        name: 'David Director',
+        tenantId: instance1.id,
+        role: 'DIRECTOR',
+        emailVerified: true,
+      },
+      // Manager
+      {
+        email: 'manager1@greenscape.com',
+        passwordHash: testPassword,
+        name: 'Mark Manager',
+        tenantId: instance1.id,
+        role: 'MANAGER',
+        emailVerified: true,
+      },
+      {
+        email: 'manager2@greenscape.com',
+        passwordHash: testPassword,
+        name: 'Maria Manager',
+        tenantId: instance1.id,
+        role: 'MANAGER',
+        emailVerified: true,
+      },
+      // Supervisor
+      {
+        email: 'supervisor1@greenscape.com',
+        passwordHash: testPassword,
+        name: 'Sam Supervisor',
+        tenantId: instance1.id,
+        role: 'SUPERVISOR',
+        emailVerified: true,
+      },
+      {
+        email: 'supervisor2@greenscape.com',
+        passwordHash: testPassword,
+        name: 'Sarah Supervisor',
+        tenantId: instance1.id,
+        role: 'SUPERVISOR',
+        emailVerified: true,
+      },
+      // Team Member
+      {
+        email: 'member1@greenscape.com',
+        passwordHash: testPassword,
+        name: 'Tom TeamMember',
+        tenantId: instance1.id,
+        role: 'TEAMMEMBER',
+        emailVerified: true,
+      },
+      {
+        email: 'member2@greenscape.com',
+        passwordHash: testPassword,
+        name: 'Tina TeamMember',
+        tenantId: instance1.id,
+        role: 'TEAMMEMBER',
+        emailVerified: true,
+      },
+      // Guest
+      {
+        email: 'guest1@greenscape.com',
+        passwordHash: testPassword,
+        name: 'Gary Guest',
+        tenantId: instance1.id,
+        role: 'GUEST',
+        emailVerified: true,
+      },
+    ],
+  });
+
+  // Instance 2 (Premier Construction Co.) users
+  await prisma.user.createMany({
+    data: [
+      // Admin
+      {
+        email: 'admin1@premier.com',
+        passwordHash: testPassword,
+        name: 'Bob Administrator',
+        tenantId: instance2.id,
+        role: 'ADMIN',
+        emailVerified: true,
+      },
+      {
+        email: 'admin2@premier.com',
+        passwordHash: testPassword,
+        name: 'Betty Admin',
+        tenantId: instance2.id,
+        role: 'ADMIN',
+        emailVerified: true,
+      },
+      // Director
+      {
+        email: 'director1@premier.com',
+        passwordHash: testPassword,
+        name: 'Derek Director',
+        tenantId: instance2.id,
+        role: 'DIRECTOR',
+        emailVerified: true,
+      },
+      {
+        email: 'director2@premier.com',
+        passwordHash: testPassword,
+        name: 'Donna Director',
+        tenantId: instance2.id,
+        role: 'DIRECTOR',
+        emailVerified: true,
+      },
+      // Manager
+      {
+        email: 'manager1@premier.com',
+        passwordHash: testPassword,
+        name: 'Mike Manager',
+        tenantId: instance2.id,
+        role: 'MANAGER',
+        emailVerified: true,
+      },
+      {
+        email: 'manager2@premier.com',
+        passwordHash: testPassword,
+        name: 'Melissa Manager',
+        tenantId: instance2.id,
+        role: 'MANAGER',
+        emailVerified: true,
+      },
+      // Supervisor
+      {
+        email: 'supervisor1@premier.com',
+        passwordHash: testPassword,
+        name: 'Steve Supervisor',
+        tenantId: instance2.id,
+        role: 'SUPERVISOR',
+        emailVerified: true,
+      },
+      {
+        email: 'supervisor2@premier.com',
+        passwordHash: testPassword,
+        name: 'Susan Supervisor',
+        tenantId: instance2.id,
+        role: 'SUPERVISOR',
+        emailVerified: true,
+      },
+      // Team Member
+      {
+        email: 'member1@premier.com',
+        passwordHash: testPassword,
+        name: 'Tim TeamMember',
+        tenantId: instance2.id,
+        role: 'TEAMMEMBER',
+        emailVerified: true,
+      },
+      {
+        email: 'member2@premier.com',
+        passwordHash: testPassword,
+        name: 'Tracy TeamMember',
+        tenantId: instance2.id,
+        role: 'TEAMMEMBER',
+        emailVerified: true,
+      },
+      // Guest
+      {
+        email: 'guest1@premier.com',
+        passwordHash: testPassword,
+        name: 'George Guest',
+        tenantId: instance2.id,
+        role: 'GUEST',
+        emailVerified: true,
+      },
+    ],
+  });
+
+  console.log('✅ Created 24 users (2 SuperAdmins + 11 per tenant) with password: Password123!');
 
   // Create roles for instance 1
   console.log('Creating roles...');

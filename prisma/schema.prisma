@@ -1,5 +1,3 @@
-// Prisma Schema for Uruhu PPM Tool
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,106 +6,127 @@ datasource db {
   provider = "postgresql"
 }
 
-// ==================== CORE MODELS ====================
-
 model Instance {
-  id           String   @id @default(cuid())
-  name         String
-  logo         String?
-  primaryColor String
-  workflowEnabled Boolean @default(true)
-  customFields    String[] // Array of custom field names
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  // Relations
-  people       Person[]
-  roles        Role[]
-  projects     Project[]
-  workOrders   WorkOrder[]
-  recurringTasks RecurringTask[]
-  quotes       Quote[]
-  timeEntries  TimeEntry[]
-  customers    Customer[]
-  subscriptions CustomerSubscription[]
+  id              String                 @id @default(cuid())
+  name            String
+  logo            String?
+  primaryColor    String
+  workflowEnabled Boolean                @default(true)
+  customFields    String[]
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  subscriptions   CustomerSubscription[]
+  customers       Customer[]
+  people          Person[]
+  projects        Project[]
+  quotes          Quote[]
+  recurringTasks  RecurringTask[]
+  roles           Role[]
+  timeEntries     TimeEntry[]
+  workOrders      WorkOrder[]
+  users           User[]
 
   @@map("instances")
 }
 
-model Person {
-  id         String   @id @default(cuid())
-  name       String
-  email      String   @unique
-  role       String
-  roleId     String?
-  avatar     String?
-  instanceId String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  passwordHash      String
+  name              String
+  avatar            String?
+  tenantId          String    // Multi-tenant support
+  role              UserRole  @default(GUEST)
+  isActive          Boolean   @default(true)
+  emailVerified     Boolean   @default(false)
+  lastLoginAt       DateTime?
+  refreshToken      String?
+  refreshTokenExpiry DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  tenant            Instance  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  // Relations
-  instance        Instance          @relation(fields: [instanceId], references: [id], onDelete: Cascade)
-  assignedRole    Role?             @relation(fields: [roleId], references: [id])
-  projectAssignments ProjectAssignment[]
-  taskAssignments    TaskAssignment[]
-  workOrderAssignments WorkOrderAssignment[]
+  @@index([tenantId])
+  @@index([email, tenantId])
+  @@map("users")
+}
+
+enum UserRole {
+  SUPERADMIN
+  ADMIN
+  DIRECTOR
+  MANAGER
+  SUPERVISOR
+  TEAMMEMBER
+  GUEST
+}
+
+model Person {
+  id                       String                    @id @default(cuid())
+  name                     String
+  email                    String                    @unique
+  role                     String
+  roleId                   String?
+  avatar                   String?
+  instanceId               String
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  instance                 Instance                  @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  assignedRole             Role?                     @relation(fields: [roleId], references: [id])
+  projectAssignments       ProjectAssignment[]
+  quotesCreated            Quote[]
   recurringTaskAssignments RecurringTaskAssignment[]
-  timeEntries     TimeEntry[]
-  workCompletionPhotos WorkCompletionPhoto[]
-  workApprovalsSubmitted WorkApproval[] @relation("SubmittedApprovals")
-  workApprovalsApproved WorkApproval[] @relation("ApprovedApprovals")
-  quotesCreated   Quote[]
-  completedWorkOrders WorkOrder[] @relation("CompletedWorkOrders")
-  approvedWorkOrders WorkOrder[] @relation("ApprovedWorkOrders")
+  taskAssignments          TaskAssignment[]
+  timeEntries              TimeEntry[]
+  workApprovalsApproved    WorkApproval[]            @relation("ApprovedApprovals")
+  workApprovalsSubmitted   WorkApproval[]            @relation("SubmittedApprovals")
+  workCompletionPhotos     WorkCompletionPhoto[]
+  workOrderAssignments     WorkOrderAssignment[]
+  approvedWorkOrders       WorkOrder[]               @relation("ApprovedWorkOrders")
+  completedWorkOrders      WorkOrder[]               @relation("CompletedWorkOrders")
 
   @@map("people")
 }
 
 model Role {
-  id            String   @id @default(cuid())
-  name          String
-  color         String
-  instanceId    String
-  permissions   String[] // Array of permission strings
-  canApproveWork Boolean @default(false)
-  level         Int      @default(1) // 1 = Team Member, 2 = Supervisor, 3 = Manager, 4 = Admin
-  requiresApprovalFrom String[] // Role IDs
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // Relations
-  instance     Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
-  people       Person[]
-  workOrderRoles WorkOrderRole[]
-  recurringTaskRoles RecurringTaskRole[]
+  id                   String              @id @default(cuid())
+  name                 String
+  color                String
+  instanceId           String
+  permissions          String[]
+  canApproveWork       Boolean             @default(false)
+  level                Int                 @default(1)
+  requiresApprovalFrom String[]
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  people               Person[]
+  recurringTaskRoles   RecurringTaskRole[]
+  instance             Instance            @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  workOrderRoles       WorkOrderRole[]
 
   @@map("roles")
 }
 
-// ==================== PROJECT MANAGEMENT ====================
-
 model Project {
-  id           String   @id @default(cuid())
-  name         String
-  description  String   @db.Text
-  instanceId   String
-  customerName String
-  status       String   @default("planning") // planning, active, on-hold, completed
-  startDate    DateTime
-  endDate      DateTime
-  budget       Float?
-  progress     Int      @default(0)
-  priority     String   @default("medium") // low, medium, high, critical
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  // Relations
-  instance     Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
-  assignments  ProjectAssignment[]
-  tasks        Task[]
-  workOrders   WorkOrder[]
+  id             String              @id @default(cuid())
+  name           String
+  description    String
+  instanceId     String
+  customerName   String
+  status         String              @default("planning")
+  startDate      DateTime
+  endDate        DateTime
+  budget         Float?
+  progress       Int                 @default(0)
+  priority       String              @default("medium")
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  assignments    ProjectAssignment[]
+  instance       Instance            @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  quotes         Quote[]
   recurringTasks RecurringTask[]
-  quotes       Quote[]
+  tasks          Task[]
+  workOrders     WorkOrder[]
 
   @@map("projects")
 }
@@ -117,34 +136,30 @@ model ProjectAssignment {
   projectId String
   personId  String
   createdAt DateTime @default(now())
-
-  // Relations
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  person    Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, personId])
   @@map("project_assignments")
 }
 
 model Task {
-  id              String   @id @default(cuid())
-  projectId       String
-  name            String
-  description     String   @db.Text
-  status          String   @default("todo") // todo, in-progress, review, completed
-  priority        String   @default("medium") // low, medium, high, critical
-  startDate       DateTime
-  endDate         DateTime
-  progress        Int      @default(0)
-  estimatedHours  Float?
-  actualHours     Float?
-  dependencies    String[] // Task IDs
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  // Relations
-  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  assignments TaskAssignment[]
+  id             String           @id @default(cuid())
+  projectId      String
+  name           String
+  description    String
+  status         String           @default("todo")
+  priority       String           @default("medium")
+  startDate      DateTime
+  endDate        DateTime
+  progress       Int              @default(0)
+  estimatedHours Float?
+  actualHours    Float?
+  dependencies   String[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  assignments    TaskAssignment[]
+  project        Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("tasks")
 }
@@ -154,139 +169,123 @@ model TaskAssignment {
   taskId    String
   personId  String
   createdAt DateTime @default(now())
-
-  // Relations
-  task      Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  person    Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+  person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@unique([taskId, personId])
   @@map("task_assignments")
 }
 
-// ==================== WORK ORDERS ====================
-
 model WorkOrder {
-  id                String    @id @default(cuid())
+  id                String                @id @default(cuid())
   projectId         String?
   instanceId        String
   customerName      String
   title             String
-  description       String    @db.Text
-  status            String    @default("draft") // draft, scheduled, in-progress, completed, cancelled, pending-approval
-  priority          String    @default("medium") // low, medium, high, critical
+  description       String
+  status            String                @default("draft")
+  priority          String                @default("medium")
   location          String?
   scheduledDate     DateTime
   scheduledTime     String?
   duration          String?
   completedDate     DateTime?
   completedById     String?
-  activityLevel     String    @default("medium") // low, medium, high
-  estimatedDuration Float     // in hours
+  activityLevel     String                @default("medium")
+  estimatedDuration Float
   actualDuration    Float?
-  isRecurring       Boolean   @default(false)
+  isRecurring       Boolean               @default(false)
   recurringTaskId   String?
-  completionPhotos  String[]  // Photo URLs
-  completionNotes   String?   @db.Text
-  approvalNotes     String?   @db.Text
-  approvalStatus    String?   // pending, approved, rejected
+  completionPhotos  String[]
+  completionNotes   String?
+  approvalNotes     String?
+  approvalStatus    String?
   approvedById      String?
   approvedAt        DateTime?
-  reviewNotes       String?   @db.Text
+  reviewNotes       String?
   projectName       String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  // Relations
-  instance         Instance  @relation(fields: [instanceId], references: [id], onDelete: Cascade)
-  project          Project?  @relation(fields: [projectId], references: [id])
-  recurringTask    RecurringTask? @relation(fields: [recurringTaskId], references: [id])
-  completedBy      Person?   @relation("CompletedWorkOrders", fields: [completedById], references: [id])
-  approvedBy       Person?   @relation("ApprovedWorkOrders", fields: [approvedById], references: [id])
-  assignments      WorkOrderAssignment[]
-  roleAssignments  WorkOrderRole[]
-  photos           WorkCompletionPhoto[]
-  approvals        WorkApproval[]
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  approvals         WorkApproval[]
+  photos            WorkCompletionPhoto[]
+  assignments       WorkOrderAssignment[]
+  roleAssignments   WorkOrderRole[]
+  approvedBy        Person?               @relation("ApprovedWorkOrders", fields: [approvedById], references: [id])
+  completedBy       Person?               @relation("CompletedWorkOrders", fields: [completedById], references: [id])
+  instance          Instance              @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  project           Project?              @relation(fields: [projectId], references: [id])
+  recurringTask     RecurringTask?        @relation(fields: [recurringTaskId], references: [id])
 
   @@map("work_orders")
 }
 
 model WorkOrderAssignment {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   workOrderId String
   personId    String
-  createdAt   DateTime @default(now())
-
-  // Relations
-  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
   person      Person    @relation(fields: [personId], references: [id], onDelete: Cascade)
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
 
   @@unique([workOrderId, personId])
   @@map("work_order_assignments")
 }
 
 model WorkOrderRole {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   workOrderId String
   roleId      String
-  createdAt   DateTime @default(now())
-
-  // Relations
-  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
   role        Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
 
   @@unique([workOrderId, roleId])
   @@map("work_order_roles")
 }
 
 model RecurringTask {
-  id                String   @id @default(cuid())
+  id                String                    @id @default(cuid())
   instanceId        String
   projectId         String?
   customerName      String
   title             String
-  description       String   @db.Text
-  frequency         String   // daily, weekly, bi-weekly, monthly, quarterly, custom
-  frequencyDetails  String?  @db.Text
+  description       String
+  frequency         String
+  frequencyDetails  String?
   startDate         DateTime
   endDate           DateTime?
-  estimatedDuration Float    // in hours
-  activityLevel     String   @default("medium") // low, medium, high
+  estimatedDuration Float
+  activityLevel     String                    @default("medium")
   nextOccurrence    DateTime
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  // Relations
-  instance         Instance  @relation(fields: [instanceId], references: [id], onDelete: Cascade)
-  project          Project?  @relation(fields: [projectId], references: [id])
-  assignments      RecurringTaskAssignment[]
-  roleAssignments  RecurringTaskRole[]
-  workOrders       WorkOrder[]
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  assignments       RecurringTaskAssignment[]
   completionHistory RecurringTaskCompletion[]
+  roleAssignments   RecurringTaskRole[]
+  instance          Instance                  @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  project           Project?                  @relation(fields: [projectId], references: [id])
+  workOrders        WorkOrder[]
 
   @@map("recurring_tasks")
 }
 
 model RecurringTaskAssignment {
-  id              String   @id @default(cuid())
+  id              String        @id @default(cuid())
   recurringTaskId String
   personId        String
-  createdAt       DateTime @default(now())
-
-  // Relations
-  recurringTask   RecurringTask @relation(fields: [recurringTaskId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
   person          Person        @relation(fields: [personId], references: [id], onDelete: Cascade)
+  recurringTask   RecurringTask @relation(fields: [recurringTaskId], references: [id], onDelete: Cascade)
 
   @@unique([recurringTaskId, personId])
   @@map("recurring_task_assignments")
 }
 
 model RecurringTaskRole {
-  id              String   @id @default(cuid())
+  id              String        @id @default(cuid())
   recurringTaskId String
   roleId          String
-  createdAt       DateTime @default(now())
-
-  // Relations
+  createdAt       DateTime      @default(now())
   recurringTask   RecurringTask @relation(fields: [recurringTaskId], references: [id], onDelete: Cascade)
   role            Role          @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
@@ -295,21 +294,17 @@ model RecurringTaskRole {
 }
 
 model RecurringTaskCompletion {
-  id              String   @id @default(cuid())
+  id              String        @id @default(cuid())
   recurringTaskId String
   date            DateTime
   workOrderId     String
   completedBy     String
   duration        Float
-  createdAt       DateTime @default(now())
-
-  // Relations
+  createdAt       DateTime      @default(now())
   recurringTask   RecurringTask @relation(fields: [recurringTaskId], references: [id], onDelete: Cascade)
 
   @@map("recurring_task_completions")
 }
-
-// ==================== TIME TRACKING ====================
 
 model TimeEntry {
   id            String    @id @default(cuid())
@@ -318,98 +313,86 @@ model TimeEntry {
   clockInTime   DateTime
   clockOutTime  DateTime?
   location      String?
-  clockInNotes  String?   @db.Text
-  clockOutNotes String?   @db.Text
+  clockInNotes  String?
+  clockOutNotes String?
   totalHours    Float?
-  workOrderIds  String[]  // Array of work order IDs
+  workOrderIds  String[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-
-  // Relations
-  person        Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
-  instance      Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  instance      Instance  @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  person        Person    @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@map("time_entries")
 }
 
-// ==================== WORK COMPLETION & APPROVAL ====================
-
 model WorkCompletionPhoto {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   workOrderId String
   personId    String
   photoUrl    String
-  caption     String?  @db.Text
-  timestamp   DateTime @default(now())
-  createdAt   DateTime @default(now())
-
-  // Relations
-  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  caption     String?
+  timestamp   DateTime  @default(now())
+  createdAt   DateTime  @default(now())
   person      Person    @relation(fields: [personId], references: [id], onDelete: Cascade)
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
 
   @@map("work_completion_photos")
 }
 
 model WorkApproval {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   workOrderId     String
   submittedById   String
-  submittedAt     DateTime @default(now())
-  status          String   @default("pending") // pending, approved, rejected, revision-requested
+  submittedAt     DateTime  @default(now())
+  status          String    @default("pending")
   approvedById    String?
   approvedAt      DateTime?
-  notes           String?  @db.Text
-  photos          String[] // Photo URLs
-  completionNotes String   @db.Text
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  // Relations
-  workOrder       WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
-  submittedBy     Person    @relation("SubmittedApprovals", fields: [submittedById], references: [id])
+  notes           String?
+  photos          String[]
+  completionNotes String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
   approvedBy      Person?   @relation("ApprovedApprovals", fields: [approvedById], references: [id])
+  submittedBy     Person    @relation("SubmittedApprovals", fields: [submittedById], references: [id])
+  workOrder       WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
 
   @@map("work_approvals")
 }
 
-// ==================== QUOTES ====================
-
 model Quote {
-  id                    String   @id @default(cuid())
-  quoteNumber           String   @unique
-  instanceId            String
-  customerName          String
-  customerEmail         String?
-  customerPhone         String?
-  customerAddress       String?  @db.Text
-  title                 String
-  description           String   @db.Text
-  status                String   @default("draft") // draft, sent, approved, rejected, expired, converted
-  priority              String?  @default("medium") // low, medium, high, critical
-  subtotal              Float
-  taxRate               Float    @default(0)
-  taxAmount             Float    @default(0)
-  discountRate          Float?
-  discountAmount        Float?
-  totalAmount           Float
-  validUntil            DateTime
-  notes                 String?  @db.Text
-  termsAndConditions    String?  @db.Text
-  createdById           String
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  sentAt                DateTime?
-  approvedAt            DateTime?
-  rejectedAt            DateTime?
-  convertedToProjectId  String?
+  id                     String          @id @default(cuid())
+  quoteNumber            String          @unique
+  instanceId             String
+  customerName           String
+  customerEmail          String?
+  customerPhone          String?
+  customerAddress        String?
+  title                  String
+  description            String
+  status                 String          @default("draft")
+  priority               String?         @default("medium")
+  subtotal               Float
+  taxRate                Float           @default(0)
+  taxAmount              Float           @default(0)
+  discountRate           Float?
+  discountAmount         Float?
+  totalAmount            Float
+  validUntil             DateTime
+  notes                  String?
+  termsAndConditions     String?
+  createdById            String
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  sentAt                 DateTime?
+  approvedAt             DateTime?
+  rejectedAt             DateTime?
+  convertedToProjectId   String?
   convertedToWorkOrderId String?
-  attachments           String[] // File URLs
-
-  // Relations
-  instance              Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
-  createdBy             Person   @relation(fields: [createdById], references: [id])
-  project               Project? @relation(fields: [convertedToProjectId], references: [id])
-  lineItems             QuoteLineItem[]
+  attachments            String[]
+  lineItems              QuoteLineItem[]
+  project                Project?        @relation(fields: [convertedToProjectId], references: [id])
+  createdBy              Person          @relation(fields: [createdById], references: [id])
+  instance               Instance        @relation(fields: [instanceId], references: [id], onDelete: Cascade)
 
   @@map("quotes")
 }
@@ -417,7 +400,7 @@ model Quote {
 model QuoteLineItem {
   id          String   @id @default(cuid())
   quoteId     String
-  description String   @db.Text
+  description String
   quantity    Float
   unitPrice   Float
   discount    Float?   @default(0)
@@ -426,72 +409,62 @@ model QuoteLineItem {
   order       Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  // Relations
   quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
 
   @@map("quote_line_items")
 }
 
-// ==================== CUSTOMERS & SUBSCRIPTIONS ====================
-
 model Customer {
-  id             String   @id @default(cuid())
+  id             String                @id @default(cuid())
   name           String
   companyName    String
-  email          String   @unique
+  email          String                @unique
   phone          String?
-  address        String?  @db.Text
+  address        String?
   instanceId     String
-  subscriptionId String?  @unique
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  // Relations
-  instance       Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  subscriptionId String?               @unique
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  instance       Instance              @relation(fields: [instanceId], references: [id], onDelete: Cascade)
   subscription   CustomerSubscription? @relation(fields: [subscriptionId], references: [id])
 
   @@map("customers")
 }
 
 model SubscriptionPlan {
-  id            String   @id @default(cuid())
+  id            String                 @id @default(cuid())
   name          String
-  description   String   @db.Text
+  description   String
   price         Float
-  billingCycle  String   // monthly, annual
-  features      String[] // Array of feature strings
+  billingCycle  String
+  features      String[]
   maxUsers      Int
   maxProjects   Int
   maxClients    Int
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // Relations
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
   subscriptions CustomerSubscription[]
 
   @@map("subscription_plans")
 }
 
 model CustomerSubscription {
-  id               String    @id @default(cuid())
-  customerId       String?   @unique
-  planId           String
-  instanceId       String
-  status           String    @default("active") // active, cancelled, past_due, trialing
-  startDate        DateTime
-  endDate          DateTime?
-  billingEmail     String
-  paymentMethod    Json?     // Stores payment method details as JSON
-  nextBillingDate  DateTime
-  amount           Float
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-
-  // Relations
-  customer         Customer?
-  plan             SubscriptionPlan @relation(fields: [planId], references: [id])
-  instance         Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  id              String           @id @default(cuid())
+  customerId      String?          @unique
+  planId          String
+  instanceId      String
+  status          String           @default("active")
+  startDate       DateTime
+  endDate         DateTime?
+  billingEmail    String
+  paymentMethod   Json?
+  nextBillingDate DateTime
+  amount          Float
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  instance        Instance         @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  plan            SubscriptionPlan @relation(fields: [planId], references: [id])
+  customer        Customer?
 
   @@map("customer_subscriptions")
 }
