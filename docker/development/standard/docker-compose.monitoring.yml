@@ -1,0 +1,77 @@
+# Uruhu Monitoring Stack - Standard Mode
+# Balanced monitoring for 4-8GB systems
+
+name: ${COMPOSE_PROJECT_NAME:-uruhu}-monitoring-standard
+
+services:
+  # Loki - Log Aggregation (Standard)
+  loki:
+    image: docker.io/grafana/loki:3.2.0
+    container_name: uruhu-loki
+    restart: unless-stopped
+    ports:
+      - "${LOKI_PORT}:3100"
+    volumes:
+      - loki_data:/loki
+      - ../../configs/loki/standard.yml:/etc/loki/local-config.yaml:ro
+    command: -config.file=/etc/loki/local-config.yaml
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3100/ready"]
+      interval: 45s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.3'
+        reservations:
+          memory: 128M
+    networks:
+      - uruhu-network
+
+  # Grafana - Visualization (Standard)
+  grafana:
+    image: docker.io/grafana/grafana:11.2.2
+    container_name: uruhu-grafana
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_PORT}:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../../configs/grafana/standard.ini:/etc/grafana/grafana.ini:ro
+      - ../../configs/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ../../configs/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_SECURITY_SECRET_KEY: ${GRAFANA_SECRET_KEY}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+          cpus: '0.4'
+        reservations:
+          memory: 192M
+    networks:
+      - uruhu-network
+    depends_on:
+      - loki
+
+networks:
+  uruhu-network:
+    external: true
+    name: uruhu-network
+
+volumes:
+  loki_data:
+    name: ${LOKI_VOLUME_NAME}
+  grafana_data:
+    name: ${GRAFANA_VOLUME_NAME}

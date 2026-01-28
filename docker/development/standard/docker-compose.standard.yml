@@ -1,0 +1,46 @@
+# Uruhu Docker Compose - Standard Mode
+# PostgreSQL-only configuration for development
+
+name: ${COMPOSE_PROJECT_NAME:-uruhu}-standard
+
+services:
+  # PostgreSQL - Standard (512MB RAM limit)
+  postgres:
+    image: postgres:15-alpine
+    container_name: uruhu-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: ${POSTGRES_INITDB_ARGS}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../../configs/postgres/standard.conf:/etc/postgresql/postgresql.conf:ro
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: ${POSTGRES_HEALTHCHECK_INTERVAL}
+      timeout: ${POSTGRES_HEALTHCHECK_TIMEOUT}
+      retries: ${POSTGRES_HEALTHCHECK_RETRIES}
+      start_period: ${POSTGRES_HEALTHCHECK_START_PERIOD}
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+    networks:
+      - uruhu
+
+networks:
+  uruhu:
+    name: ${NETWORK_NAME}
+    driver: bridge
+
+volumes:
+  postgres_data:
+    name: ${POSTGRES_VOLUME_NAME}

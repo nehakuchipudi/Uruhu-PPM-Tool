@@ -1,0 +1,79 @@
+# Uruhu Docker Compose - Services Only (Hybrid Mode)
+# External services only - developers run API/Web natively
+
+version: '3.8'
+
+name: uruhu-services
+
+services:
+  # PostgreSQL - Standard for hybrid mode
+  postgres:
+    image: postgres:15-alpine
+    container_name: uruhu-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: uruhu_dev
+      POSTGRES_USER: uruhu
+      POSTGRES_PASSWORD: dev_password
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../../configs/postgres/standard.conf:/etc/postgresql/postgresql.conf:ro
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uruhu -d uruhu_dev"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+    networks:
+      - uruhu
+
+  # pgAdmin - Optional database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: uruhu-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@uruhu.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+    networks:
+      - uruhu
+    profiles:
+      - tools
+
+networks:
+  uruhu:
+    name: uruhu-network
+    driver: bridge
+
+volumes:
+  postgres_data:
+    name: uruhu-postgres-data
+  pgadmin_data:
+    name: uruhu-pgadmin-data
